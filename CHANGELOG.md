@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.2.1 — Schema validation + /touchpoint
+
+Dogfooding-driven hardening on top of v0.2.0. Two additions surfaced during the 2026-05-28 build session:
+
+### Added — schema validation enforcement
+
+The v0.2.0 schema documented (tier × intent) constraints and other compatibility rules, but nothing actually enforced them at runtime. v0.2.1 wires validation into two gates:
+
+- **`/relationships` Step 0 preflight** — walks every `memory/person/*.md`, validates `relationships:` frontmatter, surfaces warning batch (cap 10) before scoring. User can proceed (logged), fix-now (invokes scoped `/network-rebalance`), or show-details.
+- **`/network-rebalance` Step 3.5 pre-write** — validates each accepted proposal before writing frontmatter. On failure, inline prompt to demote/shift/override/skip.
+
+**Validation rules** (canonical list in `references/person-page-extensions.md`):
+1. (tier × intent) compatibility — active-drive intents require inner/strategic; passive intents require operational/dormant.
+2. Required-field presence — tier, intent, buckets, relationship_class, icp_fit must all be present.
+3. Enum validity — values must come from documented enum lists.
+4. (class × bucket) sanity — personal + new_biz flagged as likely tagging error.
+5. (intent × buckets) sanity — passive_visibility + non-network bucket flagged; client_delivery without relationship bucket flagged.
+
+Validation overrides are logged to `<config-root>/memory/staged/skip-logs/schema-validation.md` for audit. Disable per-run with `--no-validate`; disable plugin-wide via `relationships.validate: false` in user-context.
+
+### Added — `/touchpoint` command + skill
+
+Ad-hoc relationship logging from natural language. "I had a great catch-up with Sang, he's connecting me to two folks at NationSwell." Lighter friction than `/relationships-action` for "I just did this and want to capture it" moments that don't come from a brief card.
+
+- **`commands/touchpoint.md`** — 7-step flow: parse touchpoint → detect signal-of-change → write Recent Interactions → optional generosity_ledger entry → append events.jsonl → log → confirm + optional shift prompt.
+- **`skills/touchpoint/SKILL.md`** — natural-language entrypoint with phrase patterns and routing for nucleus-router.
+- Idempotent against same-day repeats (won't double-log).
+- Pattern-shift detection: if touchpoint signals tier/intent shift (e.g., awaiting_reply + reply landing → drive_active), prompt user post-write. Opt-in.
+- Same events.jsonl shape as `/relationships-action` — unified action stream regardless of origin.
+
+### Touchpoint vs sibling commands (clarification table)
+
+| Phrase | Command |
+|---|---|
+| "I had a catch-up with [name]" | `/touchpoint` |
+| "Draft a message to [name]" | `/draft-touchpoint` |
+| "I sent that to [name]" (during brief review) | `/relationships-action` |
+| "Who should I reach out to today" | `/relationships` |
+| "Rebalance my network" | `/network-rebalance` |
+
+### Out of scope for v0.2.1
+
+- CRM write-through on `/touchpoint` (some users may want HubSpot last_contact_date updates).
+- Auto-detection of touchpoints from `/listen` mining (would propose `/touchpoint` candidates during `/morning` walk).
+
+---
+
 ## 0.2.0 — intent dimension + framework clarifications
 
 Major schema refinement informed by the inaugural `/network-rebalance` walk on 2026-05-28. Six framework gaps surfaced from tagging 12 real person pages; this release addresses all six.

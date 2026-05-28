@@ -184,6 +184,37 @@ After each batch, summarize: "Batch 1 complete — N accepted, M skipped, K edit
 
 ---
 
+## Step 3.5 — Schema validation pre-write (v0.2.1+)
+
+Before writing accepted proposals, validate each one against the schema rules in `references/person-page-extensions.md`:
+
+1. **(tier × intent) compatibility** — see `/relationships` schema validation preflight for the rules.
+2. **Required-field presence** — every accepted proposal must include all required fields.
+3. **Enum validity** — values come from documented enum lists.
+4. **(class × bucket) sanity** — flag personal + new_biz, etc.
+5. **(intent × buckets) sanity** — passive_visibility + non-network bucket = warn; client_delivery without relationship bucket = warn.
+
+If any accepted proposal fails validation, surface inline before the write:
+
+```
+⚠ Proposal validation failed for [name]:
+  Rule: (tier × intent) compatibility
+  Conflict: tier=strategic + intent=keep_warm
+  Options:
+    (1) Demote tier to operational
+    (2) Shift intent to drive_active or door_opening
+    (3) Override anyway (logged to schema-validation.md)
+    (4) Skip — don't write this page
+
+  Choose: 1 / 2 / 3 / 4
+```
+
+If override is chosen, log to `<config-root>/memory/staged/skip-logs/schema-validation.md` with `(slug, rule-violated, override-rationale)` for audit.
+
+This catches the case where the user accepts proposals quickly in batch and a compatibility issue slips through. Fail-loud, fix-now.
+
+---
+
 ## Step 4 — Frontmatter writing
 
 For each accepted proposal:

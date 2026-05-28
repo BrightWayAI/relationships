@@ -34,6 +34,58 @@ Also read (best-effort, skip silently if missing):
 - `<config-root>/memory/hot.md` (cortex hot cache — recent context)
 - `<config-root>/memory/DASHBOARD.md` (cortex dashboard — active threads, P0s)
 
+### Schema validation preflight (v0.2.1+)
+
+Before scoring, walk every `memory/person/*.md` file and validate its `relationships:` frontmatter (if present). For each invalid combination, surface as a warning batch BEFORE the brief renders. The user can either fix in-place or proceed with a downgraded brief.
+
+**Validation rules:**
+
+1. **(tier × intent) compatibility** — per `references/person-page-extensions.md`:
+   - `tier: inner | strategic` requires `intent ∈ {client_delivery, drive_active, door_opening, reciprocal, advising, content_share}` (active-drive)
+   - `tier: operational | dormant` requires `intent ∈ {keep_warm, passive_visibility, awaiting_reply}` (passive)
+   - Mismatch (e.g., `strategic + passive_visibility`) → warn.
+
+2. **Required-field presence** — every tagged page must have `tier`, `intent`, `buckets`, `relationship_class`, `icp_fit`.
+   - Missing field → warn with which field.
+
+3. **Enum validity** — values must come from the documented enum lists. Free-text values not in the enum → warn.
+
+4. **(class × bucket) sanity:**
+   - `relationship_class: personal` + `buckets` containing `new_biz` → unusual; warn ("personal contact tagged for new business — likely tagging error").
+
+5. **(intent × buckets) sanity:**
+   - `intent: passive_visibility` + `buckets` containing anything other than `[network]` → warn ("passive_visibility means engage with content only; non-network buckets won't fire").
+   - `intent: client_delivery` + `buckets` missing `relationship` → warn.
+
+**Surface format:**
+
+```
+SCHEMA VALIDATION — 3 warnings before scoring:
+
+  ⚠ person/sarah-chen.md
+    tier: strategic + intent: passive_visibility → contradictory
+    Strategic implies active drive; passive_visibility is operational/dormant only.
+    Fix: demote tier to operational, OR shift intent to drive_active.
+
+  ⚠ person/jonathan-harms.md
+    Missing required field: icp_fit
+    Default applied: none
+
+  ⚠ person/derek-patel.md
+    intent: client_delivery + buckets: [new_biz]
+    client_delivery without `relationship` in buckets — likely tagging error.
+
+Proceed with scoring? (y / fix-now / show-details)
+```
+
+- **`y`** — proceed; warnings logged to `<config-root>/memory/staged/skip-logs/schema-validation.md` for review.
+- **`fix-now`** — invoke `/network-rebalance --scoped person/sarah-chen,person/jonathan-harms,person/derek-patel` to walk just the warned pages.
+- **`show-details`** — render full validation details for each warning (the rule that fired, the current value, suggested fixes).
+
+Cap: 10 warnings surfaced per run (sorted by severity: contradiction > missing-required > enum-invalid > sanity). Beyond the cap, append "+N more — run `/network-rebalance --validate` for full list."
+
+**Default-on enforcement.** Schema validation runs every `/relationships` invocation. Disable per-run with `--no-validate` (for power users). Disable plugin-wide via `cortex.user-context.md` → `relationships.validate: false`.
+
 ---
 
 ## Step 1 — Time-budget gate
