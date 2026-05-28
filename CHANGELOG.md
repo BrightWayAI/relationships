@@ -1,6 +1,56 @@
 # Changelog
 
-## 0.1.0 — Initial release (unreleased)
+## 0.1.1 — Hybrid setup + UI-ready structure
+
+Architectural refinement based on review feedback (three independent perspectives — architecture, shareability, operator UX — all converged on the same hybrid). Two themes: stop duplicating peer-plugin data, and make the plugin's outputs structurally UI-ready before any UI exists.
+
+### Hybrid setup — `/setup-relationships` shrinks for Nucleus-stack users
+
+- **New Step 0.5 — peer-plugin import.** Detects and pre-fills from `identity.md`, `voice.md`, `lead-engine.user-context.md`, `core-ops.user-context.md`, `referral-engine.user-context.md`, `bizdev-outreach.user-context.md` (legacy), `weekly-outreach.user-context.md` (legacy), `writing-style.user-context.md`, and cortex workstream nodes. One-time import at setup; not live runtime reads.
+- **Step 2 collapses to confirmation + 5 unique questions.** For full-stack users: ~60 seconds. For standalone installs (no peers): full interview with fallback fields written into the user-context.
+- **Provenance.** Each imported field tagged with source path + import date in the written user-context.
+
+### user-context.template — slimmed
+
+- **Dropped:** identity, voice descriptors, full CRM properties, full Apollo config, full referral cooling — all live at their canonical peer files at runtime.
+- **Kept:** minimal identity for template-variable filling, tier configurations, bucket weights, close-personal track toggle, time budget, network-expansion voice routing, scoring overrides, companion-plugin detection results, standalone-install fallback sections.
+- Net file size cut by ~60%; signal-to-noise improved substantially.
+
+### UI-ready structure (for the future web app / Operator desktop / mobile PWA)
+
+- **Stable option IDs.** Format `<bucket>_<person-slug>_<YYYY-MM-DD>` instead of `<bucket>_<date>_<rank>`. Same person on the same day → same ID across re-runs. UIs can correlate "did I act on this?" reliably.
+- **`brief_id`.** UUID v4 generated at the start of every `/relationships` run. Included in `today.json` and in every event. Lets a UI correlate events to specific brief generations.
+- **`events.jsonl`** — append-only event log at `<config-root>/relationships/events.jsonl`. Written when the user marks a card copied/sent/skipped/snoozed. Canonical action stream for analytics.
+- **`snoozes.json`** — persistent snooze state at `<config-root>/relationships/snoozes.json`. Read by `/relationships` Step 3 (filter pool); written by `/relationships-action`.
+- **New command `/relationships-action`** — decoupled action endpoint. Takes a JSON event payload (inline or file-based from a UI inbox). Appends to events log, updates cortex person page, updates snoozes. UIs invoke this once per tap.
+- **`inbox/` pattern.** UI writes JSON events to `<config-root>/relationships/inbox/<uuid>.json`; sync daemon invokes `/relationships-action --file=<path>`; processed files move to `inbox/processed/`. No HTTP, no IPC — just files on a shared volume.
+
+### New references
+
+- **`references/ui-integration.md`** — full contract for UI builders: how to consume `today.json`, post events to `/relationships-action`, watch `snoozes.json`, handle schema versioning, the sync-daemon pattern, what NOT to do.
+
+### Updated references
+
+- **`references/today-json-schema.md`** — adds `brief_id` field + new stable option-ID format + related-files section pointing at events.jsonl and snoozes.json.
+
+### Updated contracts (in `nucleus/docs/contracts.md`)
+
+- Added rows for `events.jsonl`, `snoozes.json`, `inbox/`.
+- Documented peer-import behavior (one-time at setup, not runtime).
+
+### Skills
+
+- Added `relationships-action` natural-language entrypoint (e.g., "I sent that to Sarah" → resolves option → invokes `/relationships-action`).
+
+### What this is NOT
+
+- Not a UI. v0.1.1 is structure for a future UI. The web app / Operator desktop is Phase 6.
+- Not a re-architecture. Existing `/relationships` Step 0 → Step 8 flow is intact; this adds writes (events, snoozes) and reads (snoozes at Step 3).
+- Not breaking. Schema version stays at `0.1.0` (option ID format change is a UI-internal concern; the contract was added in this release so no consumers exist yet to break).
+
+---
+
+## 0.1.0 — Initial release
 
 First release of the `relationships` plugin — the daily orchestrator for new business development, relationship building, and network expansion. Three-bucket brief, configurable tiers, templates library, channel-aware draft surface, on-demand drafting, and quarterly migration tooling.
 

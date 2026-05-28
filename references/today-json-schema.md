@@ -16,6 +16,7 @@ Current schema version: **`0.1.0`**.
 {
   "schema_version": "0.1.0",
   "date": "2026-05-28",
+  "brief_id": "550e8400-e29b-41d4-a716-446655440000",
   "generated_at": "2026-05-28T07:30:00-04:00",
   "user": {
     "name": "Zach Wagner",
@@ -73,10 +74,12 @@ Current schema version: **`0.1.0`**.
 
 ## Option shape
 
+**Stable option ID format:** `<bucket>_<person-slug>_<YYYY-MM-DD>` — bucket + slug + date. Same person on the same day → same ID across re-runs, so a UI can correlate "did I act on Sarah's card?" reliably across page reloads.
+
 ```json
 {
   "rank": 1,
-  "id": "new_biz_2026-05-28_1",
+  "id": "new_biz_sarah-chen_2026-05-28",
   "bucket_id": "new_biz",
   "sub_tab": null,
   "person": {
@@ -197,7 +200,7 @@ A formal JSON Schema document for validation is shipped alongside this doc at `r
       "options": [
         {
           "rank": 1,
-          "id": "new_biz_2026-05-28_1",
+          "id": "new_biz_sarah-chen_2026-05-28",
           "bucket_id": "new_biz",
           "sub_tab": null,
           "person": {
@@ -292,3 +295,15 @@ Surfaces consuming this artifact should:
 ## Privacy
 
 The artifact contains personally identifying information (full names, companies, sometimes phone-tier indicators). Treat as confidential. The plugin gitignores `<config-root>/relationships/` against accidental commit; downstream consumers should not log or transmit the artifact without user consent.
+
+---
+
+## Related files (the full plugin contract surface)
+
+`today.json` is one of four files a UI consumer interacts with. See `references/ui-integration.md` for the complete contract:
+
+- **`<config-root>/relationships/today.json`** — this file. Overwritten on every `/relationships` run.
+- **`<config-root>/relationships/<YYYY-MM-DD>.json`** — date-stamped historical snapshots.
+- **`<config-root>/relationships/events.jsonl`** — append-only event log. UI reads for analytics. Events written by `/relationships-action`.
+- **`<config-root>/relationships/snoozes.json`** — persistent snooze state. Read by `/relationships` Step 3; written by `/relationships-action`.
+- **`<config-root>/relationships/inbox/`** — UI drops JSON events here; sync daemon invokes `/relationships-action --file=<path>`.

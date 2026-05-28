@@ -1,10 +1,16 @@
 ---
-description: Produce today's relationship brief — 3 buckets (new business / relationship building / network expansion), 3 options each, with recommended channel, time estimate, and copy-ready draft per option. Drafts only — never sends. Respects time-budget filtering and tier-based cadence rules. Reads from cortex person pages, CRM, calendar, inbox; delegates to contact-researcher and pipeline-analyst when installed.
+description: Produce today's relationship brief — 3 buckets (new business / relationship building / network expansion), 3 options each, with recommended channel, time estimate, and copy-ready draft per option. Drafts only — never sends. Respects time-budget filtering, persistent snoozes, and tier-based cadence rules. Reads from cortex person pages, CRM, calendar, inbox; delegates to contact-researcher and pipeline-analyst when installed. Writes a structured `today.json` artifact for downstream UI consumers and appends to a persistent events log on user actions.
 ---
 
 # /relationships
 
 The daily relationship cockpit. Run in the morning (or anytime) to see who matters today, what to say, and how to spend the next 5/15/30/60+ minutes on relationship work.
+
+---
+
+## Brief ID
+
+Generate a UUID v4 at the start of every run. Set `brief_id` to this value. Included in `today.json` and in every event written to `events.jsonl` so the structured event stream can be correlated back to the specific brief that produced it. Useful for analytics, debugging, and any future UI showing "your last brief."
 
 ---
 
@@ -94,7 +100,20 @@ Apply scoring. Keep top.
 
 ## Step 3 — Filter and select 3 per bucket
 
-For each bucket's top candidates, apply hard filters:
+Before applying hard filters, **read persistent snoozes** from `<config-root>/relationships/snoozes.json`:
+
+```json
+[
+  { "slug": "sarah-chen", "until_date": "2026-06-10", "reason": "she's traveling", "snoozed_at": "2026-05-28T07:34:00-04:00" },
+  ...
+]
+```
+
+Drop any candidate whose `slug` matches an entry where `until_date >= today`. Entries with `until_date < today` are auto-expired (still in the file for audit; could be cleaned on next run).
+
+If the file is missing, treat as empty — no snoozes active. Don't create it here; it's written by `/relationships-action` when the user snoozes a card.
+
+Then apply hard filters:
 
 - **Cooling period:** if a contact was touched within the tier's minimum-gap window, skip.
 - **Do-not-engage:** if CRM marks them DNE, skip.
@@ -227,44 +246,49 @@ Markdown snapshot for audit trail and downstream readers (Obsidian, daily-brief 
 
 ### `<config-root>/relationships/today.json`
 
-Structured JSON for downstream consumers (future web app, Operator desktop, daily-brief render layer).
+Structured JSON for downstream consumers (future web app, Operator desktop, daily-brief render layer, any third-party UI).
 
-JSON schema documented in `references/today-json-schema.md` (TBD Phase 2). Minimum fields:
+Full JSON schema documented in `references/today-json-schema.md`. Stable contract — schema version `0.1.0`. Includes:
 
-```json
-{
-  "date": "YYYY-MM-DD",
-  "budget_minutes": 30,
-  "buckets": [
-    {
-      "id": "new_biz",
-      "label": "New Business Development",
-      "options": [
-        {
-          "rank": 1,
-          "person": { "slug": "sarah-chen", "name": "Sarah Chen", "title": "...", "company": "..." },
-          "why_now": "...",
-          "channel": "linkedin_dm_cold",
-          "time_estimate_min": 5,
-          "draft_subject": "...",
-          "draft_body": "...",
-          "template_used": "dm/linkedin-cold-icp.md",
-          "score": 0.78,
-          "tier": "operational",
-          "icp_fit": "primary"
-        }
-      ]
-    }
-  ],
-  "carrying": { "operational_overdue": 23, "strategic_cooling": 4 }
-}
-```
+- `schema_version` — bump for breaking changes only
+- `brief_id` — UUID v4 generated at the start of this run
+- Stable option IDs in form `<bucket>_<person-slug>_<YYYY-MM-DD>` — same person → same ID across re-runs the same day (so a UI can correlate "did I act on Sarah's card?" across page reloads)
+- Per-option `actions` block — `copy_payload`, `next_steps_if_done`, `snooze_options_days`
+- Per-option `confidence`, `research_thin`, `template` provenance
+- Top-level `carrying` summary
+
+A UI consumer reads `today.json` directly; it doesn't need to re-run `/relationships` to render the brief.
 
 ---
 
-## Step 7 — Person-page side effects (opt-in)
+## Step 7 — User actions (events log + cortex side-effects)
 
-If the user marks a card as "done" (in conversation: "I sent that to Sarah" / "done with #1"), append to that person's cortex page **## Recent interactions** log:
+When the user marks a card as "done" / "sent" / "skipped" / "snoozed" (either inline in this conversation OR via `/relationships-action` from a UI), do two things in parallel:
+
+### A — Append to events log
+
+`<config-root>/relationships/events.jsonl` — append-only, newline-delimited JSON. One event per line. Create file if missing.
+
+Event shape:
+```json
+{
+  "ts": "2026-05-28T08:14:33-04:00",
+  "brief_id": "<UUID from this run>",
+  "option_id": "new_biz_sarah-chen_2026-05-28",
+  "person_slug": "sarah-chen",
+  "bucket": "new_biz",
+  "channel": "linkedin_dm_cold",
+  "action": "copied | sent | skipped | snoozed",
+  "notes": "(optional free-form, user can dictate)",
+  "snooze_until": "2026-06-10 (only when action=snoozed)"
+}
+```
+
+This log is the canonical event stream a future UI consumes for analytics ("you completed 4/9 today," "weekly volume by channel," etc.). Don't truncate; let it grow. A future `/relationships-stats` command could summarize.
+
+### B — Cortex person-page side-effects (when action ∈ {sent, copied with confirmation})
+
+If cortex is installed (`<config-root>/memory/person/<slug>.md` exists), append to **## Recent interactions** log:
 
 ```
 <today> — <channel> — relationships brief touch (<bucket>)
@@ -272,9 +296,19 @@ If the user marks a card as "done" (in conversation: "I sent that to Sarah" / "d
 
 Update **Last meaningful contact** in Relationship section if appropriate.
 
-If cortex isn't installed (`<config-root>/memory/` missing), skip silently.
-
 **Never** modify Identity, Notes, or other sections. Always additive.
+
+### C — Snooze writes
+
+When `action = snoozed`, also append to `<config-root>/relationships/snoozes.json` (create file if missing):
+
+```json
+{ "slug": "sarah-chen", "until_date": "2026-06-04", "reason": "(optional)", "snoozed_at": "2026-05-28T08:14:33-04:00" }
+```
+
+The snooze is read by the next `/relationships` Step 3 to filter the candidate pool.
+
+If the user invokes via `/relationships-action` instead of inline, that command handles all three (events log, person-page update, snoozes). This step is the inline equivalent — both paths converge to the same state.
 
 ---
 
