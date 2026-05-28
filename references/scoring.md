@@ -33,8 +33,9 @@ User-context can override per bucket — e.g., a user focused on prospecting cou
 ### `decay_factor`
 
 ```
+effective_cadence_days = cadence_days_override OR tier_default_cadence_days
 decay_factor = clamp(
-  (days_since_last_touch − tier_target_days) / tier_target_days,
+  (days_since_last_touch − effective_cadence_days) / effective_cadence_days,
   0.0, 1.0
 )
 ```
@@ -43,7 +44,16 @@ decay_factor = clamp(
 - `0.5` if the contact is one full cadence period overdue
 - `1.0` if the contact is two or more cadence periods overdue (or more, clamped)
 
+`cadence_days_override` (v0.2.0+) lets a person use a custom cadence regardless of tier default — e.g., strategic-feel + quarterly cadence. If unset, the tier default applies.
+
 Untouched-since-graduation contacts use a baseline `last_touch = graduation_date`.
+
+**Follow-up window override for `intent: awaiting_reply` (v0.2.0+):** when a person's intent is `awaiting_reply`, the decay_factor formula is replaced by a follow-up window:
+- 0-7 days since outreach: `decay_factor = 0.0` (fresh, give them space)
+- 7-21 days: `decay_factor` ramps linearly from 0.0 to 0.8 (gentle "follow up if no response" pressure)
+- 21+ days: `decay_factor = 1.0` (clear signal to either re-touch or shift intent to `keep_warm`)
+
+This prevents "just sent a DM 5/28" people from getting the full operational 90-day cooling period when the real question is "when should I bump if no reply?"
 
 ### `trigger_factor`
 
@@ -111,6 +121,24 @@ Subtracted from score. High values keep a contact out of the brief.
 - Touched within tier's recommended-gap window → penalty `0.5`
 - Marked do-not-engage in CRM or person page → penalty `1.0` (effectively excludes)
 - Inside an active-deal cooling window (referral-engine plugin enforces this) → penalty per its rules
+
+## Intent-driven framing (v0.2.0+)
+
+The person's `intent` field shapes how the daily brief presents the card:
+
+| Intent | Card framing |
+|---|---|
+| `client_delivery` | "Active engagement touch — [what's open]" with delivery-driven template |
+| `drive_active` | "[Specific goal] — drive the conversation" with goal-explicit template |
+| `door_opening` | "Stay useful + visible — share [tool/practice/intro]" |
+| `reciprocal` | "Match her energy — forward [opp] or thank her for [recent share]" |
+| `advising` | "Bring a topic — what door for [name] to open or decision worth their counsel?" |
+| `content_share` | "Pure-give — share [tool/framework/practice]. No ask, no quid pro quo." |
+| `keep_warm` | "Light touch — no specific goal. Surface only because [trigger]." |
+| `passive_visibility` | "Engage with their content — comment, react. NO direct DM." |
+| `awaiting_reply` | "Follow-up window [N] days since last outreach. Bump or shift to keep_warm." |
+
+This means the brief doesn't always produce a "drafted message" — for `advising` and `passive_visibility`, it prompts the user to bring intent or engage with content rather than drafting a generic outreach. Templates adapt accordingly.
 
 ## Channel selection
 

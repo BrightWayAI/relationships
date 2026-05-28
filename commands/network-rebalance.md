@@ -99,6 +99,29 @@ Honor user-context tier-size targets. If proposing `tier: inner` would push the 
 
 Computed deterministically: `last_meaningful_contact_date + tier_cadence_days`. Not user-edited during rebalance — derived field. If `last_meaningful_contact` is missing on the page, set to `today` (so the contact starts the clock fresh, doesn't immediately surface as overdue).
 
+### `intent` proposal (v0.2.0+)
+
+Propose intent based on the page's existing context + the (tier, intent) compatibility rules in `references/person-page-extensions.md`:
+
+- Active client engagement → `client_delivery`
+- Active deal pursuit → `drive_active`
+- Connector with active door-opening → `door_opening`
+- Mutual referral peer → `reciprocal`
+- Explicit advisor with help offer → `advising`
+- Pure-give cadence (closed-lost-but-stay-warm) → `content_share`
+- Quiet maintenance, no active goal → `keep_warm`
+- Network-only / never-direct-outreach → `passive_visibility`
+- Just-sent-outreach, awaiting reply → `awaiting_reply`
+
+Validate (tier × intent) compatibility:
+- Inner / strategic tier expects active-drive intents
+- Operational / dormant tier expects passive intents
+- If proposed combination is invalid, surface to user during review batch: "Tier:strategic + intent:keep_warm is contradictory. Demote tier to operational or shift intent to drive_active?"
+
+### `cadence_days_override` proposal (v0.2.0+)
+
+Default: null (use tier default). Propose a custom value only when the user has explicitly indicated a non-default cadence preference during the walk (e.g., "she's strategic but I only need quarterly").
+
 ### `preferred_channels` proposal (array, v0.1.2+)
 
 Propose an ordered array based on observed patterns:

@@ -1,5 +1,81 @@
 # Changelog
 
+## 0.2.0 — intent dimension + framework clarifications
+
+Major schema refinement informed by the inaugural `/network-rebalance` walk on 2026-05-28. Six framework gaps surfaced from tagging 12 real person pages; this release addresses all six.
+
+### New schema field: `intent` (required for ranking; default by tier)
+
+The `intent` field encodes the **dynamic of engagement** as a dimension orthogonal to (but constrained by) `tier`. Tier captures cadence + drive level; intent captures the texture of HOW you engage.
+
+**Active-drive intents** (paired with inner / strategic tiers):
+- `client_delivery` — active client engagement (Tom, Charity, Kim patterns)
+- `drive_active` — actively driving a relationship goal
+- `door_opening` — connector role; staying useful + visible
+- `reciprocal` — mutual referral; match the energy (Jennifer Ives pattern)
+- `advising` — asymmetric help with explicit offer (Sang Lee pattern)
+- `content_share` — pure-give cadence; no quid pro quo (Rob Buelow post-Vector pattern)
+
+**Passive intents** (paired with operational / dormant tiers):
+- `keep_warm` — quiet maintenance (Lauren Little, Caitlyn, Catherine pattern)
+- `passive_visibility` — network-bucket only; engage with content, never direct outreach (Jonathan Harms pattern)
+- `awaiting_reply` — transient state for just-sent outreach (Lauren Bernstein post-DM pattern)
+
+The brief validates (tier × intent) compatibility — invalid combinations (e.g., strategic + passive_visibility) surface in `/network-rebalance` for reconciliation.
+
+### Intent-driven card framing (`/relationships` Step 4)
+
+The daily brief now adapts the card's framing based on intent:
+- `advising` → "[Person] — monthly touch. What's your topic?" (waits for user input, then drafts)
+- `passive_visibility` → "Comment on [their recent post]" (never drafts a direct DM)
+- `content_share` → "Pure-give — share [tool/framework/practice]"
+- All other intents → standard channel + template + draft flow
+
+### Cadence override field
+
+New optional `cadence_days_override: <integer>` lets a person use a custom cadence regardless of tier default. Use case: "strategic by intuition, quarterly by cadence." Scoring engine reads override if set; falls back to tier default if null.
+
+### Follow-up window for awaiting_reply intent
+
+For people with `intent: awaiting_reply`, the standard decay formula is replaced by a follow-up window:
+- 0-7 days: 0.0 (give them space)
+- 7-21 days: linear ramp to 0.8 (gentle bump pressure)
+- 21+ days: 1.0 (clear signal to bump or shift to keep_warm)
+
+Prevents fresh outreach from sitting under the operational 90-day cooling period.
+
+### Internal-team exclusion documented
+
+`/relationships` Step 2 now explicitly scopes the candidate pool to `<config-root>/memory/person/*.md` ONLY. Never `team/`, `client/`, `bizdev/`, `workstream/`. Internal team members in `team/` are not subjects of relationship maintenance — this is enforced at scoping time, not via special-case logic.
+
+### Notes-field principle documented
+
+`references/person-page-extensions.md` now codifies: the `notes` field is about THE RELATIONSHIP (communication style, outreach intent context, origin, framing rules, personal context). Project status (deliverables, WAITING items, engagement specifics) belongs in `client/`, `bizdev/`, or `workstream/` nodes. Includes test ("would the note still matter without this person?") + examples.
+
+### Network-rebalance updates
+
+`/network-rebalance` Step 2 now proposes:
+- `intent` based on page context (active client → client_delivery, etc.)
+- `cadence_days_override` only when user explicitly indicates non-default cadence
+- Validates (tier × intent) combinations and surfaces invalid pairs to the user
+
+### today.json schema additions
+
+`option.person.intent` and `option.person.cadence_days_override` now included in the structured JSON output. Schema version stays at `0.1.0` (additive fields only; no breaking changes for consumers).
+
+### Backward compatibility
+
+- Existing pages without `intent` default by tier: inner/strategic → `drive_active`; operational → `keep_warm`; dormant → `passive_visibility`. Run `/network-rebalance` to set explicit values.
+- Existing pages without `cadence_days_override` use tier default (current behavior).
+
+### Not included in v0.2.0 (deferred)
+
+- `team/` node prefix as a formalized cortex v4.12 node type — needs separate cortex PR.
+- Generosity-ledger auto-population — not in scope.
+- Multi-intent per person (array form) — single intent for v0.2.0; consider array form in v0.3 if patterns warrant.
+
+---
+
 ## 0.1.2 — preferred_channels as array
 
 Schema refinement during the first real-world network-rebalance walk. Real people have multi-channel preferences (text + phone for inner-core, email + LinkedIn DM for warm BD); a single `preferred_channel` field forced a false choice.

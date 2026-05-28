@@ -63,6 +63,10 @@ score = w_decay × decay_factor
 
 Weights come from `references/scoring.md` defaults, modulated by the bucket weights in user-context.
 
+### Candidate pool scoping (v0.2.0)
+
+**Read only from `<config-root>/memory/person/*.md`** — never `team/`, `client/`, `bizdev/`, `workstream/`, or any other node prefix. Internal team members live in `team/` and are not subjects of relationship maintenance. The person/ scoping is enforced at this step; no special-case logic later.
+
 ### Bucket A — New Business Development
 
 Candidate pool:
@@ -135,6 +139,16 @@ If a bucket has < 3 candidates:
 ## Step 4 — Pick channel + template + draft
 
 For each of the (up to) 9 surfaced cards:
+
+### Intent-driven card framing (v0.2.0+)
+
+Before picking channel + template, read the person's `intent` field. Intent shapes the card's framing — see the intent table in `references/scoring.md`.
+
+For intents `advising` and `passive_visibility`, the brief does NOT draft a generic outreach message. Instead:
+- `advising` → render a prompt: "[Person] — monthly advising touch. What's your topic? (door to open or decision worth their counsel)" — wait for user to provide topic, then draft.
+- `passive_visibility` → render an "engage with their content" card: "Comment on [their recent post]" or "Engage with [latest LinkedIn activity]." Never propose a direct DM.
+
+For intents `client_delivery`, `drive_active`, `door_opening`, `reciprocal`, `content_share`, `keep_warm`, `awaiting_reply` → proceed to channel + template selection below using intent-appropriate template scenarios.
 
 ### Channel selection
 

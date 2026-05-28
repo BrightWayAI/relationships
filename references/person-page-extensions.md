@@ -7,17 +7,19 @@ The `relationships` plugin extends cortex person pages (`<config-root>/memory/pe
 ```yaml
 relationships:
   tier: inner | strategic | operational | dormant
+  intent: client_delivery | drive_active | door_opening | reciprocal | advising | content_share | keep_warm | passive_visibility | awaiting_reply
   buckets: [new_biz, relationship, network]
   relationship_class: business | personal
   icp_fit: primary | secondary | none
   next_touch_target: YYYY-MM-DD
-  preferred_channels: [text, call]   # ordered by preference; first is the default
+  cadence_days_override: null | <integer>   # optional; overrides tier default cadence for this person
+  preferred_channels: [text, call]          # ordered by preference; first is the default
   generosity_ledger:
     - date: YYYY-MM-DD
       direction: gave | received
       note: "short string"
   notes:
-    - "free-form, optional"
+    - "free-form, optional — see notes-field principle below"
 ```
 
 ## Field reference
@@ -49,9 +51,38 @@ Drives channel and voice selection. `personal` people use the personal voice (if
 
 For new-business weighting. `primary` matches the user-context primary ICP definition; `secondary` matches secondary; `none` is out-of-ICP for this user's current focus. Recompute as ICP evolves.
 
+### `intent` (required for ranking; default by tier)
+
+Specifies the **dynamic of how you engage** with this person. Distinct from tier (cadence + drive level) — intent encodes the texture of engagement within that cadence.
+
+**Active-drive intents** (compatible with inner / strategic tiers):
+- `client_delivery` — active client engagement; cadence is delivery-driven (Tom, Charity, Kim)
+- `drive_active` — actively driving a relationship goal (deal, deepening, specific ask in flight)
+- `door_opening` — they connect you to other people; cadence is about staying useful + visible
+- `reciprocal` — mutual referral / match the energy (Jennifer Ives)
+- `advising` — asymmetric help; they've offered counsel and you should use it intentionally (Sang Lee)
+- `content_share` — pure-give cadence; share tools/practices/frameworks with no quid pro quo (Rob Buelow post-Vector)
+
+**Passive intents** (compatible with operational / dormant tiers):
+- `keep_warm` — quiet maintenance; surface only on triggers (Lauren Little, Caitlyn, Catherine)
+- `passive_visibility` — `[network]`-bucket only; engage with their content, never direct outreach (Jonathan Harms)
+- `awaiting_reply` — just sent outreach; waiting on response. Transient state — re-tier and re-intent once reply lands or window closes.
+
+**Constraint:** not every (tier × intent) combination is valid. Strategic + passive_visibility is a contradiction. The daily brief and `/network-rebalance` validate combinations and prompt the user to reconcile if invalid.
+
+**Dynamic:** intent shifts as the relationship evolves. Lauren Bernstein could move `awaiting_reply` → `drive_active` if a real conversation develops, or back to `keep_warm` if she goes quiet. Re-evaluate intent at every `/network-rebalance`; the daily brief should also propose shifts when patterns indicate.
+
+### `cadence_days_override` (optional, default null)
+
+Overrides the tier's default cadence in days for this specific person. Use when a person fits a tier conceptually but wants a different cadence than the tier default.
+
+Example: Lauren Little is operational by intuition (no active pursuit) but you want to touch base every 60 days instead of the 90-day default. Set `cadence_days_override: 60`.
+
+Leave null for the tier default. Most people won't have this set.
+
 ### `next_touch_target` (auto-computed)
 
-Date the cadence next becomes due. Computed as `last_meaningful_contact + tier_cadence_days`. Used by the scoring engine to compute the decay factor. **Auto-maintained** by `/relationships` and `/network-rebalance`; users rarely set manually.
+Date the cadence next becomes due. Computed as `last_meaningful_contact + (cadence_days_override or tier_cadence_days)`. Used by the scoring engine to compute the decay factor. **Auto-maintained** by `/relationships` and `/network-rebalance`; users rarely set manually.
 
 ### `preferred_channels` (optional, array; v0.1.2+)
 
@@ -75,7 +106,23 @@ Keep this short — the last 5-10 entries are enough. Don't journal every micro-
 
 ### `notes` (optional)
 
-Free-form additional notes specific to relationships logic. Most context belongs in the cortex page's main Notes section; use this only for relationship-mechanism notes ("don't text after 9pm her time," "always cc her assistant").
+**Notes-field principle (v0.1.3+):** the `notes` array is about THE RELATIONSHIP — communication style, outreach intent context, origin (who introduced), mentor/connector role, personal context affecting cadence, framing rules.
+
+**Notes are NOT for project status.** Outstanding deliverables, WAITING items on specific work, engagement specifics ($X deal, M1 doc drafted, sign-off pending) belong in `client/`, `bizdev/`, or `workstream/` nodes — not on the person's relationships frontmatter.
+
+A test: if removing the person from your network entirely would make the note obsolete → it belongs here. If the note would still matter (because it describes a deliverable, a deadline, a deal stage) → it belongs in the project node.
+
+Examples that belong here:
+- "Long-time personal friend AND explicit advisor. Has stated he wants to help."
+- "Style: warm, casual, short. -Zach sign-off."
+- "Pattern: commits to intros and doesn't follow through. Drive next steps directly."
+- "Origin: Sang Lee intro Aug 2025."
+- "Don't position her as a go-between for the Sylvia relationship."
+
+Examples that DON'T belong here (move to client/bizdev node):
+- "Architecture doc M1 drafted — WAITING:Kim sign-off"
+- "$7K engagement, 35–40 hrs"
+- "Youth Inc subcontract opportunity surfaced 5/18"
 
 ---
 
