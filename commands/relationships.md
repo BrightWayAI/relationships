@@ -138,7 +138,7 @@ For each of the (up to) 9 surfaced cards:
 
 ### Channel selection
 
-A simple rule table (full table in `references/scoring.md`):
+A simple rule table (full table in `references/scoring.md`). After the rule-table channel is computed, check the person page's `preferred_channels` array (v0.1.2+) — if the rule-table channel matches an entry, use that match; otherwise fall back to `preferred_channels[0]` unless the trigger is `cold_icp` or `warm_intro` (those override preferences).
 
 | Relationship class | Tier | Trigger | Recommended channel |
 |---|---|---|---|

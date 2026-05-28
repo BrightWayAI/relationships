@@ -11,7 +11,7 @@ relationships:
   relationship_class: business | personal
   icp_fit: primary | secondary | none
   next_touch_target: YYYY-MM-DD
-  preferred_channel: email | linkedin_dm | text | call | none
+  preferred_channels: [text, call]   # ordered by preference; first is the default
   generosity_ledger:
     - date: YYYY-MM-DD
       direction: gave | received
@@ -53,9 +53,19 @@ For new-business weighting. `primary` matches the user-context primary ICP defin
 
 Date the cadence next becomes due. Computed as `last_meaningful_contact + tier_cadence_days`. Used by the scoring engine to compute the decay factor. **Auto-maintained** by `/relationships` and `/network-rebalance`; users rarely set manually.
 
-### `preferred_channel` (optional)
+### `preferred_channels` (optional, array; v0.1.2+)
 
-If the user knows the person prefers a specific channel ("Sarah always responds fast on LinkedIn DM; emails go to voicemail"), set it here. The brief's channel-selection rules respect this override.
+Ordered list of channels the person prefers, most-preferred first. Real people have multi-channel preferences ("text for quick, call for substantive"; "email + LinkedIn DM both work"). The daily brief's channel-selection rules honor this list:
+
+- If the rule-table channel for a trigger matches anything in `preferred_channels` → use that match.
+- Otherwise, fall back to `preferred_channels[0]` (the primary).
+- If `preferred_channels` is empty or absent → use the rule-table default for the trigger.
+
+Valid values: `email | linkedin_dm | instagram_dm | text | call | comment | conference_dm | none`. Use `none` (alone) to explicitly disable channel-preference override.
+
+Example: `[text, call]` means "text by default; phone for triggers that suggest a call (substantive news, big decisions); never my preferred channel for cold/research-thin cards (those use the rule-table channel)."
+
+**Migration from v0.1.1 `preferred_channel` (singular):** the array form supersedes the single-value field. v0.1.2 readers gracefully accept either shape (single-value becomes a single-item array). The schema document and templates use the array form going forward.
 
 ### `generosity_ledger` (optional)
 
@@ -81,7 +91,7 @@ relationships:
   relationship_class: business
   icp_fit: primary
   next_touch_target: 2026-06-10
-  preferred_channel: linkedin_dm
+  preferred_channels: [linkedin_dm]
   generosity_ledger:
     - date: 2026-05-12
       direction: gave

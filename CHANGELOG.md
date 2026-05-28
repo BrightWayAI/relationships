@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.1.2 — preferred_channels as array
+
+Schema refinement during the first real-world network-rebalance walk. Real people have multi-channel preferences (text + phone for inner-core, email + LinkedIn DM for warm BD); a single `preferred_channel` field forced a false choice.
+
+### Changes
+
+- **`preferred_channel` (single) → `preferred_channels` (array)** on cortex person-page frontmatter under the `relationships:` namespace. Ordered by preference; first entry is the default.
+- **Channel-selection logic** (in `/relationships` Step 4 and `references/scoring.md`) updated:
+  1. Compute rule-table channel for the trigger.
+  2. If rule-table channel ∈ `preferred_channels` → use that match.
+  3. Else → use `preferred_channels[0]` (primary preference).
+  4. Exception: triggers `cold_icp` and `warm_intro` override preferences (they require specific formats).
+  5. Absent/empty → rule-table default.
+- **`/network-rebalance`** updated to propose arrays based on observed patterns ("All emails → `[email]`; mixed with notes → `[text, call]`; sparse → omit").
+- **JSON schema** (`today-json-schema.md`): option's `person.preferred_channels` is now an array.
+
+### Backward compatibility
+
+v0.1.2 readers accept either shape — a singular `preferred_channel` value is silently coerced to a single-item array. No migration required for existing pages (only just-introduced in v0.1.1; no person pages have it yet outside this session's rebalance).
+
+### Not breaking
+
+Schema version stays at `0.1.0` (no UI consumers yet to break).
+
+---
+
 ## 0.1.1 — Hybrid setup + UI-ready structure
 
 Architectural refinement based on review feedback (three independent perspectives — architecture, shareability, operator UX — all converged on the same hybrid). Two themes: stop duplicating peer-plugin data, and make the plugin's outputs structurally UI-ready before any UI exists.

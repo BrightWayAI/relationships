@@ -114,7 +114,16 @@ Subtracted from score. High values keep a contact out of the brief.
 
 ## Channel selection
 
-Once a contact is selected for a card, pick the channel. Decision table (the brief may also honor `preferred_channel` on the person page — that overrides):
+Once a contact is selected for a card, pick the channel. The decision table below produces a rule-table default per (relationship_class, tier, trigger).
+
+**The person page's `preferred_channels` array (v0.1.2+) overrides the table:**
+
+1. Compute the rule-table channel for the trigger.
+2. If `preferred_channels` is set and the rule-table channel matches any entry → use that match.
+3. Otherwise → use `preferred_channels[0]` (primary preference) — UNLESS the trigger is `cold_icp` or `warm_intro` (those override even preferred channels because they require specific formats).
+4. If `preferred_channels` is absent/empty → use rule-table default.
+
+This lets a person with `preferred_channels: [text, call]` get text for routine touches AND phone for big-news triggers (since the rule-table routes news to call anyway, matching their array).
 
 | Relationship class | Tier | Trigger | Recommended channel |
 |---|---|---|---|

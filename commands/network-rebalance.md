@@ -99,13 +99,16 @@ Honor user-context tier-size targets. If proposing `tier: inner` would push the 
 
 Computed deterministically: `last_meaningful_contact_date + tier_cadence_days`. Not user-edited during rebalance — derived field. If `last_meaningful_contact` is missing on the page, set to `today` (so the contact starts the clock fresh, doesn't immediately surface as overdue).
 
-### `preferred_channel` proposal
+### `preferred_channels` proposal (array, v0.1.2+)
 
-Only propose if the page has a strong signal:
-- All recent interactions are LinkedIn DM → propose `linkedin_dm`.
-- All recent interactions are email → propose `email`.
-- All recent interactions are calls → propose `call`.
-- Mixed or sparse → omit (let the daily brief decide per-action).
+Propose an ordered array based on observed patterns:
+- All recent interactions are LinkedIn DM → propose `[linkedin_dm]`.
+- All recent interactions are email → propose `[email]`.
+- All recent interactions are calls → propose `[call]`.
+- Mixed pattern with clear primary + secondary (e.g., page Notes say "text usually; phone for big news") → propose `[text, call]`.
+- Sparse or no clear pattern → omit (let the daily brief decide per-action).
+
+Surface the proposal in plain language during the review batch: "Tom: preferred_channels: [text, call] — text default; phone for substantive."
 
 ### `generosity_ledger`
 
