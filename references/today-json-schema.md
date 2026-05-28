@@ -1,0 +1,294 @@
+# `today.json` schema
+
+The structured artifact produced by `/relationships` after each daily brief run. Written to `<config-root>/relationships/today.json` (and a date-stamped copy at `<config-root>/relationships/<YYYY-MM-DD>.json`).
+
+This is the **stable contract** that downstream surfaces depend on — a future Next.js web app, the Operator desktop app, daily-brief tight-coupling, and any third-party reader. Treat it like a public API.
+
+## Versioning
+
+The JSON includes a `schema_version` field at the root. Backward-incompatible changes bump the major version; additive (new optional fields) bumps minor.
+
+Current schema version: **`0.1.0`**.
+
+## Top-level shape
+
+```json
+{
+  "schema_version": "0.1.0",
+  "date": "2026-05-28",
+  "generated_at": "2026-05-28T07:30:00-04:00",
+  "user": {
+    "name": "Zach Wagner",
+    "first_name": "Zach",
+    "company": "BrightWay AI",
+    "one_liner": "AI-powered pre-production infrastructure for educational video at scale"
+  },
+  "budget_minutes": 30,
+  "budget_mode": "default | variable | override",
+  "quarter_focus": "Studio K-12 anchors",
+  "quarter_target": "2 Phase-1 anchors signed",
+  "buckets": [
+    { /* see Bucket shape */ }
+  ],
+  "carrying": {
+    "operational_overdue": 23,
+    "strategic_cooling": 4,
+    "inner_overdue_not_surfaced": 0,
+    "personal_overdue_not_surfaced": 2
+  },
+  "best_fits_for_budget": [
+    {
+      "bucket_id": "relationship",
+      "option_rank": 1,
+      "time_estimate_min": 5
+    }
+  ],
+  "warnings": [
+    "Pipeline analyst returned Medium confidence — CRM data partial."
+  ]
+}
+```
+
+## Bucket shape
+
+```json
+{
+  "id": "new_biz | relationship | network",
+  "label": "New Business Development",
+  "weight": 1.0,
+  "options": [
+    { /* see Option shape */ }
+  ],
+  "sub_tabs": [
+    { "id": "business", "label": "Business" },
+    { "id": "personal", "label": "Close Personal" }
+  ],
+  "empty_state_note": null
+}
+```
+
+`sub_tabs` is present only on the `relationship` bucket when the user has enabled the close-personal track. Options inside sub-tabs carry a `sub_tab` field tying them to one. Other buckets omit `sub_tabs`.
+
+`empty_state_note` is present (non-null) when the bucket has fewer than 3 options — explains why ("no urgent actions; quietly carrying X overdue Operational contacts").
+
+## Option shape
+
+```json
+{
+  "rank": 1,
+  "id": "new_biz_2026-05-28_1",
+  "bucket_id": "new_biz",
+  "sub_tab": null,
+  "person": {
+    "slug": "sarah-chen",
+    "name": "Sarah Chen",
+    "first_name": "Sarah",
+    "title": "Head of Content",
+    "company": "MedBridge",
+    "tier": "operational",
+    "relationship_class": "business",
+    "icp_fit": "primary",
+    "preferred_channel": null,
+    "cortex_page_path": "<config-root>/memory/person/sarah-chen.md",
+    "hubspot_id": "12345"
+  },
+  "why_now": "Funding announced 6d ago + ICP primary + WAITING:you on intro he asked for last month.",
+  "score": 0.78,
+  "score_breakdown": {
+    "decay": 0.08,
+    "trigger": 0.22,
+    "icp": 0.20,
+    "reciprocity": 0.15,
+    "goal": 0.05,
+    "cooling_penalty": 0.00,
+    "total": 0.70
+  },
+  "confidence": "high | medium | low",
+  "research_thin": false,
+  "channel": "linkedin_dm_cold",
+  "time_estimate_min": 5,
+  "template": {
+    "path": "references/templates/dm/linkedin-cold-icp.md",
+    "scenario": "linkedin-cold-icp",
+    "voice_used": "primary"
+  },
+  "draft": {
+    "subject": null,
+    "body": "Sarah — saw the Series B at MedBridge. Reaching out because...",
+    "variables_filled": [
+      "person.first_name",
+      "person.company",
+      "trigger.context",
+      "user.one_liner",
+      "user.first_name"
+    ],
+    "variables_missing": [],
+    "needs_user_touch": false,
+    "voice_signoff": "—Zach"
+  },
+  "trigger": {
+    "type": "funding | job_change | their_post | news | cadence_overdue | warm_intro | cold_icp | mutual_mention | none",
+    "summary": "MedBridge announced $12M Series B last week (TechCrunch)",
+    "source": "websearch | crm | gmail | cortex | manual",
+    "observed_at": "2026-05-22"
+  },
+  "actions": {
+    "copy_payload": "Sarah — saw the Series B at MedBridge...",
+    "next_steps_if_done": [
+      "Append to cortex person page Recent interactions",
+      "Update next_touch_target"
+    ],
+    "snooze_options_days": [1, 3, 7, 30]
+  }
+}
+```
+
+### Channel enum
+
+```
+linkedin_dm_cold
+linkedin_dm_warm
+linkedin_dm_followup
+linkedin_dm_congrats
+linkedin_comment
+instagram_dm
+email_cold
+email_warm
+email_followup
+email_intro_request
+email_recap
+text_checkin
+text_congrats
+phone_call_warm
+phone_call_discovery
+conference_dm_pre
+conference_dm_post
+self_post
+```
+
+The channel maps directly to a template family in `references/templates/`. If a future surface (e.g., web app) renders cards, the channel determines the icon, the channel label, and the typical action (copy + open the right app).
+
+## JSON Schema (draft)
+
+A formal JSON Schema document for validation is shipped alongside this doc at `references/today-json-schema.json` (TBD — to be generated when the writer is implemented). The high-level shape from this doc is authoritative until then.
+
+## Example (full)
+
+```json
+{
+  "schema_version": "0.1.0",
+  "date": "2026-05-28",
+  "generated_at": "2026-05-28T07:30:00-04:00",
+  "user": {
+    "name": "Sample User",
+    "first_name": "Sample",
+    "company": "Sample Co",
+    "one_liner": "We do X for Y."
+  },
+  "budget_minutes": 30,
+  "budget_mode": "default",
+  "quarter_focus": "Anchor accounts",
+  "quarter_target": "$150K new contracted",
+  "buckets": [
+    {
+      "id": "new_biz",
+      "label": "New Business Development",
+      "weight": 1.0,
+      "options": [
+        {
+          "rank": 1,
+          "id": "new_biz_2026-05-28_1",
+          "bucket_id": "new_biz",
+          "sub_tab": null,
+          "person": {
+            "slug": "alex-jones",
+            "name": "Alex Jones",
+            "first_name": "Alex",
+            "title": "Director of Content",
+            "company": "Acme Learning",
+            "tier": "operational",
+            "relationship_class": "business",
+            "icp_fit": "primary",
+            "preferred_channel": null,
+            "cortex_page_path": null,
+            "hubspot_id": null
+          },
+          "why_now": "Posted about content velocity bottleneck 3d ago + ICP primary.",
+          "score": 0.65,
+          "score_breakdown": {
+            "decay": 0.30,
+            "trigger": 0.15,
+            "icp": 0.20,
+            "reciprocity": 0.00,
+            "goal": 0.00,
+            "cooling_penalty": 0.00,
+            "total": 0.65
+          },
+          "confidence": "medium",
+          "research_thin": true,
+          "channel": "linkedin_dm_cold",
+          "time_estimate_min": 5,
+          "template": {
+            "path": "references/templates/dm/linkedin-cold-icp.md",
+            "scenario": "linkedin-cold-icp",
+            "voice_used": "primary"
+          },
+          "draft": {
+            "subject": null,
+            "body": "Alex — saw your post about content velocity at Acme Learning...",
+            "variables_filled": [
+              "person.first_name",
+              "person.company",
+              "trigger.context",
+              "user.one_liner"
+            ],
+            "variables_missing": ["shared_context"],
+            "needs_user_touch": true,
+            "voice_signoff": "—Sample"
+          },
+          "trigger": {
+            "type": "their_post",
+            "summary": "LinkedIn post 3d ago about pre-production bottleneck.",
+            "source": "websearch",
+            "observed_at": "2026-05-25"
+          },
+          "actions": {
+            "copy_payload": "Alex — saw your post about content velocity...",
+            "next_steps_if_done": [
+              "Create cortex person page",
+              "Tag in HubSpot as ICP primary"
+            ],
+            "snooze_options_days": [1, 3, 7, 30]
+          }
+        }
+      ],
+      "sub_tabs": null,
+      "empty_state_note": null
+    }
+  ],
+  "carrying": {
+    "operational_overdue": 23,
+    "strategic_cooling": 4,
+    "inner_overdue_not_surfaced": 0,
+    "personal_overdue_not_surfaced": 0
+  },
+  "best_fits_for_budget": [
+    { "bucket_id": "new_biz", "option_rank": 1, "time_estimate_min": 5 }
+  ],
+  "warnings": []
+}
+```
+
+## Reader expectations
+
+Surfaces consuming this artifact should:
+
+1. **Check `schema_version`.** If it's a major version they don't know, render a "schema mismatch" warning and refuse to act on actions (`actions.copy_payload` is still safe to render, but `actions.next_steps_if_done` may have changed semantics).
+2. **Use `draft.needs_user_touch`** to flag incomplete drafts visually (e.g., yellow border on the card).
+3. **Honor `confidence`** — Low confidence cards should display a "research-thin" indicator.
+4. **Use `actions.copy_payload`** as the canonical thing to copy on tap. Never copy `draft.body` directly — `copy_payload` includes any subject + body assembly.
+5. **Use `carrying`** to render a "quietly carrying X overdue" footnote so the user knows nothing was lost.
+
+## Privacy
+
+The artifact contains personally identifying information (full names, companies, sometimes phone-tier indicators). Treat as confidential. The plugin gitignores `<config-root>/relationships/` against accidental commit; downstream consumers should not log or transmit the artifact without user consent.
