@@ -308,6 +308,61 @@ The artifact contains personally identifying information (full names, companies,
 
 - **`<config-root>/relationships/today.json`** — this file. Overwritten on every `/relationships` run.
 - **`<config-root>/relationships/<YYYY-MM-DD>.json`** — date-stamped historical snapshots.
-- **`<config-root>/relationships/events.jsonl`** — append-only event log. UI reads for analytics. Events written by `/relationships-action`.
+- **`<config-root>/relationships/events.jsonl`** — append-only event log. See "Events.jsonl shape" section below for the unified v0.2.2 schema.
 - **`<config-root>/relationships/snoozes.json`** — persistent snooze state. Read by `/relationships` Step 3; written by `/relationships-action`.
 - **`<config-root>/relationships/inbox/`** — UI drops JSON events here; sync daemon invokes `/relationships-action --file=<path>`.
+
+---
+
+## Events.jsonl shape (v0.2.2 unified — locks 2026-05-28)
+
+Three writers append to `<config-root>/relationships/events.jsonl`: `/relationships-action`, `/relationships` Step 7 (inline action handling), and `/touchpoint`. All three use the v0.2.2 unified shape.
+
+### Canonical event object
+
+```json
+{
+  "schema_version": "0.2.2",
+  "ts": "2026-05-28T14:32:00-04:00",
+  "brief_id": "550e8400-e29b-41d4-a716-446655440000",   // null for /touchpoint (not tied to a brief)
+  "option_id": "new_biz_sarah-chen_2026-05-28",           // null for /touchpoint
+  "person_slug": "sarah-chen",
+  "bucket": "new_biz",                                     // null for /touchpoint
+  "channel": "linkedin_dm_warm",
+  "action": "copied" | "sent" | "skipped" | "snoozed" | "touchpoint",
+  "notes": "<user-supplied free-form text; capped to keep total event ≤ 4KB>",
+  "meta": {
+    // Common (any writer may include):
+    "source": "inline" | "file" | "natural-language" | "explicit-args",
+
+    // /relationships-action only (null elsewhere):
+    "snooze_until": "2026-06-04",     // when action: snoozed
+    "late_action": true,               // when option_id date != today
+
+    // /touchpoint only (null elsewhere):
+    "direction": "in" | "out",
+    "intent_at_time": "drive_active",
+    "tier_at_time": "strategic"
+  }
+}
+```
+
+### Reader rules
+
+- **Missing `schema_version`** → treat event as v0.2.0 (pre-meta-nesting). Read `snooze_until`, `late_action`, `source` from the TOP level rather than from `meta`.
+- **Missing `meta` block on a v0.2.2-flagged event** → treat as if all meta fields are null.
+- **Unknown `action` enum value** → log + render as a generic event; DO NOT crash. The action enum may be extended in future versions.
+- **Unknown fields inside `meta`** → ignore gracefully. Future writers may add fields without bumping schema_version.
+
+### Atomic-append safety
+
+Per POSIX, single-call `write()` with `O_APPEND` is atomic ONLY when ≤ `PIPE_BUF` bytes (typically 4096 on macOS/Linux). Writers MUST cap each event line at 4000 bytes (safety margin). Truncate `notes` if needed; append `[truncated — see person page Recent Interactions]` marker.
+
+This guarantees concurrent appends from three writers won't interleave-corrupt the JSONL file.
+
+### Version history
+
+- **v0.1.1** — events.jsonl introduced. No schema_version field. Top-level `notes`, `snooze_until`, `late_action`, `source`.
+- **v0.2.1** — `/touchpoint` added with DIVERGENT shape (used `summary` instead of `notes`; added `direction`/`intent_at_time`/`tier_at_time` at top level). UI readers expecting v0.1.1 shape would see `null` for `notes` on every touchpoint.
+- **v0.2.2** — unified. `summary` renamed to `notes`; per-action extras nested under `meta:`. `schema_version` field added. Backward-compat read rule documented.
+- **Future (v0.3+)** — additional `action` enum values likely; readers should accept unknowns.

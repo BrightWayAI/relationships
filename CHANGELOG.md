@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.2.3 — Reference docs + retired-plugin migration (2026-05-28)
+
+Followup to v0.2.2 completing the deferred items from the v0.2.0 → v0.2.2 review punch list. Coordinated with cortex v4.12.3 + daily-brief v0.4.2.
+
+### Added — Events.jsonl spec in references/today-json-schema.md
+
+The v0.2.2 unified events shape was documented only in `commands/touchpoint.md` and `commands/relationships-action.md`. UI builders reading the schema reference wouldn't see it. v0.2.3 adds a dedicated **"Events.jsonl shape"** section to `references/today-json-schema.md` covering:
+- Full canonical event object with all per-action variants
+- Reader rules (missing schema_version → v0.2.0; missing meta → null; unknown action enum → log + render generic; unknown meta fields → ignore)
+- Atomic-append safety (4KB cap explanation)
+- Version history (v0.1.1 → v0.2.1 divergence → v0.2.2 unified)
+
+### Added — Forward-compat reading discipline in references/ui-integration.md
+
+UI builders need explicit rules for handling mixed-version events.jsonl. v0.2.3 expands the "Reading the events stream" section with:
+- 5 forward-compat reading rules (schema_version check, open action enum, optional meta block, null option_id signals touchpoint, 4KB line guarantee)
+- Touchpoint event sample shape (was missing from the write-contract section)
+- New analytics queries: touchpoint cadence per person, reciprocity balance via meta.direction
+
+### Added — `/network-rebalance` Step 0.5 retired-plugin migration
+
+Detects legacy `weekly-outreach.user-context.md` + `bizdev-outreach.user-context.md` files (from plugins retired earlier today). Offers to migrate relevant fields (ICP, voice rules, banned phrases, CRM mappings, cadence definitions) into the active `relationships.user-context.md`. Conflicts surface per-field reconciliation prompts. Originals archived to `<config-root>/plugins/archive/<name>.<today>.md` (renamed, not deleted). Marker prevents re-prompt.
+
+Idempotent: skip-marker prevents prompt-fatigue. `--migrate-legacy` flag forces re-check.
+
+### Acceptance
+
+- [ ] `references/today-json-schema.md` has "Events.jsonl shape" section with full v0.2.2 spec.
+- [ ] `references/ui-integration.md` has forward-compat reading rules + touchpoint sample shape.
+- [ ] `/network-rebalance` Step 0.5 retired-plugin migration prompt.
+- [ ] `plugin.json` bumped to 0.2.3.
+
+---
+
 ## 0.2.2 — Events.jsonl unification + untagged-page defaults + override-log enum (2026-05-28)
 
 Same-day patch fixing 3 CRITICAL findings surfaced by post-ship review. Coordinated with cortex v4.12.2 + daily-brief v0.4.1.

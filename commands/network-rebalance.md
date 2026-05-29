@@ -33,6 +33,52 @@ Extract from user-context:
 
 ---
 
+## Step 0.5 — Retired-plugin user-context migration (v0.2.3+)
+
+Detect legacy plugin user-context files from the retired `weekly-outreach` + `bizdev-outreach` plugins. If present, offer to migrate relevant fields into the active `relationships.user-context.md` before walking person pages.
+
+```
+legacy_files = [
+  <config-root>/plugins/weekly-outreach.user-context.md,
+  <config-root>/plugins/bizdev-outreach.user-context.md,
+]
+
+If any legacy file exists AND was not yet migrated (no `<config-root>/plugins/.relationships-migrated-from-legacy` marker):
+  Surface:
+    "Detected legacy plugin configs from retired plugins:
+       - <list of legacy files that exist>
+
+     These plugins were retired in favor of `relationships`. Their user-context files
+     can be migrated — relevant fields (ICP, voice rules, banned phrases, CRM
+     mappings, cadence definitions) get copied into your relationships.user-context.md
+     where they're still consulted. Original files preserved at
+     <config-root>/plugins/archive/<original-name>.<today>.md (renamed, not deleted).
+
+     Migrate now? (y/n/show-diff)"
+
+  On show-diff: render a per-file summary of which fields would be copied where, then re-prompt.
+  On y:
+    For each legacy file:
+      Parse known sections (ICP, Voice, CRM, Cadence, Banned phrases, Value-adds, etc.)
+      For each field, compare against current relationships.user-context.md:
+        - If relationships.user-context lacks the field → copy it over (with provenance: <!-- migrated-from: <legacy-file> @ <today> -->).
+        - If relationships.user-context already has the field with the SAME value → skip silently.
+        - If relationships.user-context has a DIFFERENT value → surface a per-field reconciliation prompt: "[Field name] differs:
+           legacy: <legacy-value>
+           current: <current-value>
+           keep-current / use-legacy / show-context / merge-manually"
+      After all fields handled, mv <legacy-file> <config-root>/plugins/archive/<original-name>.<today>.md
+    Write <config-root>/plugins/.relationships-migrated-from-legacy with timestamp + list of files migrated.
+    Surface count: "Migrated <N> fields from <M> legacy files. Originals archived to <config-root>/plugins/archive/."
+  On n:
+    Surface: "Migration skipped. Re-run /network-rebalance later to migrate, or run /setup-relationships --refresh-imports for the same effect. The legacy files will not be read again unless explicitly requested."
+    Write skip-marker so this prompt doesn't re-fire on every /network-rebalance run.
+```
+
+This migration is idempotent. The skip-marker prevents prompt-fatigue; re-running with `--migrate-legacy` flag forces a re-check.
+
+---
+
 ## Step 1 — Scope selection
 
 Ask the user:

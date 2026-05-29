@@ -120,20 +120,24 @@ Render as a small footnote: "Quietly carrying: 23 operational overdue, 4 strateg
 
 ---
 
-## Posting actions back — write contract
+## Posting actions back — write contract (v0.2.2 unified shape)
 
 When the user taps Copy / Sent / Skip / Snooze on a card, write a JSON event to `<config-root>/relationships/inbox/<uuid>.json`:
 
 ```json
 {
-  "action": "copied | sent | skipped | snoozed",
+  "schema_version": "0.2.2",
+  "action": "copied" | "sent" | "skipped" | "snoozed",
   "option_id": "<from today.json>",
   "person_slug": "<from option_id>",
   "bucket": "<from option_id>",
   "channel": "<from option.channel>",
   "brief_id": "<from today.json>",
-  "notes": "(optional)",
-  "snooze_until": "(YYYY-MM-DD if action=snoozed)"
+  "notes": "(optional, free-form, ≤ 4KB total event size)",
+  "meta": {
+    "snooze_until": "<YYYY-MM-DD when action: snoozed>",
+    "source": "file"
+  }
 }
 ```
 
@@ -141,20 +145,62 @@ The sync daemon picks up the file and invokes `/relationships-action --file=<pat
 
 **Atomicity tip:** write to `<config-root>/relationships/inbox/.tmp/<uuid>.json` first, then rename into `inbox/<uuid>.json`. Avoids the daemon picking up a partially-written file.
 
+### Touchpoint events (UI is not a writer, but should know the shape)
+
+`/touchpoint` is invoked from natural-language sessions, not via the inbox/ pattern. But the events.jsonl stream will contain `action: "touchpoint"` events that a UI displays in any unified action log. The shape:
+
+```json
+{
+  "schema_version": "0.2.2",
+  "action": "touchpoint",
+  "option_id": null,
+  "brief_id": null,
+  "bucket": null,
+  "person_slug": "sang-lee",
+  "channel": "call",
+  "notes": "had a great catch-up; he's intro'ing me to two folks at NationSwell",
+  "meta": {
+    "direction": "out",
+    "intent_at_time": "advising",
+    "tier_at_time": "strategic",
+    "source": "natural-language"
+  }
+}
+```
+
+UI readers must accept `action: "touchpoint"` gracefully and render `option_id: null` events with a different visual treatment (no "from today's brief card #N" header, no copy-button).
+
 ---
 
-## Reading the events stream
+## Reading the events stream (v0.2.2 forward-compat rules)
 
-For analytics, the UI reads `<config-root>/relationships/events.jsonl` directly (or via Supabase mirror). Each line is one event. Append-only.
+For analytics, the UI reads `<config-root>/relationships/events.jsonl` directly (or via Supabase mirror). Each line is one event. Append-only. Full event shape spec lives in `references/today-json-schema.md` "Events.jsonl shape" section.
 
-Typical analytics:
+### Forward-compat reading discipline
+
+The event shape evolves over plugin versions. UI readers MUST follow these rules to handle mixed-version logs gracefully:
+
+1. **`schema_version` check first.** If missing → treat as v0.2.0 (pre-meta-nesting). If `schema_version` is a NEWER major version than the reader knows → render the event read-only with a "schema mismatch — display only" badge; don't take destructive actions on it.
+
+2. **Action enum is open.** Known actions: `copied | sent | skipped | snoozed | touchpoint`. Future versions may add more (`commented`, `connected`, etc.). Render unknown actions as "logged event" with the event's `notes` content; never crash.
+
+3. **`meta` block is optional.** On v0.2.0 events, `meta` is absent — read `snooze_until`, `late_action`, `source` from the top level. On v0.2.2+, read from `meta.<field>`. Reader should try `meta.<field> ?? <top-level-field>` as the safe pattern.
+
+4. **`option_id == null`** signals a touchpoint event (not tied to a brief card). Render differently — no "from card #N" header, no copy-button, more emphasis on the freeform `notes` content.
+
+5. **Each line is < 4KB** (enforced by writers via atomic-append safety rule). Reader can `readline()` and parse-per-line without worrying about partial reads at chunk boundaries.
+
+### Typical analytics queries
+
 - **"Today so far"** — count events with `ts > today_start`
 - **Channel mix** — group by `channel` in last 7 days
 - **Response time** — diff between brief `generated_at` and first action's `ts`
-- **Snooze patterns** — events where `action: snoozed`, grouped by `bucket`
-- **Late actions** — events with `late_action: true` (action on yesterday's brief)
+- **Snooze patterns** — events where `action: snoozed`, grouped by `bucket` (or by `meta.snooze_until - ts` for snooze-duration analysis)
+- **Late actions** — events where `meta.late_action == true` (action on yesterday's brief)
+- **Touchpoint cadence** — events where `action: "touchpoint"`, grouped by `person_slug`, plotted over time. Helps surface relationships where the user hasn't logged a touchpoint recently.
+- **Reciprocity balance** — touchpoint events grouped by `meta.direction` (in vs out) per person. If outbound count substantially exceeds inbound, the user may be over-investing without reciprocity.
 
-The events log is small (one line per action, ~200 bytes). A year of daily use stays under 10 MB.
+The events log is small (one line per action, typically 200-1000 bytes; capped at 4KB). A year of daily use (10 events/day) stays well under 15 MB.
 
 ---
 
