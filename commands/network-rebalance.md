@@ -1,5 +1,5 @@
 ---
-description: Walk your existing cortex person pages and propose tier + buckets + relationship_class + icp_fit + preferred_channel frontmatter for each. Batch-interactive (10-15 at a time) — you approve, edit, or defer per row. Idempotent; safe to re-run. Run once after /setup-relationships to tag your network, then quarterly to keep tiers honest.
+description: Walk your existing cortex person pages and propose tier + intent + buckets + relationship_class + icp_fit + preferred_channels frontmatter for each. Batch-interactive (10-15 at a time) — you approve, edit, or defer per row. Idempotent; safe to re-run. Run once after /setup-relationships to tag your network, then quarterly to keep tiers honest. v0.2.2+ also migrates legacy weekly-outreach + bizdev-outreach user-context files.
 ---
 
 # /network-rebalance
@@ -156,7 +156,7 @@ REBALANCE BATCH 1 of N
      buckets: [new_biz, relationship]
      relationship_class: business
      icp_fit: primary             [reason: matches "Heads of Content at mid-market EdTech"]
-     preferred_channel: email
+     preferred_channels: [email]
      next_touch_target: 2026-06-11 (auto-computed)
 
    [ accept ] [ edit ] [ skip ] [ defer ] [ archive page ]

@@ -79,24 +79,54 @@ If `today.json` is older than today's date OR the `option_id` references a diffe
 
 ---
 
-## Step 3 — Append to events log
+## Step 3 — Append to events log (v0.2.2 unified shape)
+
+### Step 3.0 — Ensure directory exists
+
+```
+mkdir -p <config-root>/relationships/
+```
+
+Idempotent.
+
+### Step 3.1 — Compose the event
 
 Append a single line to `<config-root>/relationships/events.jsonl` (create file if missing):
 
 ```json
 {
+  "schema_version": "0.2.2",
   "ts": "<ISO 8601 timestamp with local timezone>",
   "brief_id": "<from today.json or event payload>",
   "option_id": "<from event payload>",
   "person_slug": "<from option_id>",
   "bucket": "<from option_id>",
   "channel": "<from event payload or today.json>",
-  "action": "<from event payload>",
+  "action": "copied" | "sent" | "skipped" | "snoozed",
   "notes": "<from event payload if present>",
-  "snooze_until": "<from event payload if action=snoozed>",
-  "late_action": "<true/false — true if option_id date != today>",
-  "source": "inline | file | natural-language"
+  "meta": {
+    "snooze_until": "<from event payload if action=snoozed; else null>",
+    "late_action": "<true|false — true if option_id date != today>",
+    "source": "inline" | "file" | "natural-language"
+  }
 }
+```
+
+**v0.2.2 shape changes:**
+- Added `schema_version` field. Default to "0.2.0" if missing on read (back-compat with v0.1.x and v0.2.0 events).
+- Moved `snooze_until`, `late_action`, `source` into `meta` block — harmonizes with `/touchpoint` v0.2.2 event shape. UI readers receiving any v0.2.2 event read `event.meta.<field>`.
+- Backward-compat read rule: if `meta` missing, read top-level fields directly (v0.1.x / v0.2.0 events).
+
+### Step 3.2 — Atomic-append safety
+
+The events.jsonl file is appended by THREE writers (`/touchpoint`, `/relationships-action`, `/relationships` Step 7). POSIX `O_APPEND` writes are atomic ONLY when the write is ≤ `PIPE_BUF` (typically 4096 bytes). Longer writes can interleave under concurrent access and corrupt the JSONL.
+
+```
+event_json = serialize event with newline appended
+if len(event_json) > 4000:
+  Truncate `notes` so total stays ≤ 4000 bytes.
+  Append "[truncated]" marker.
+append event_json to events.jsonl (O_APPEND, single write call).
 ```
 
 Append-only. Never modify prior entries.

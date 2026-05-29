@@ -46,7 +46,7 @@ If multiple matches, present them and ask which:
 
 Read everything relevant to drafting:
 
-1. **Cortex person page** (if exists): frontmatter (tier, buckets, relationship_class, icp_fit, preferred_channel, generosity_ledger), Identity, Relationship (temperature, last meaningful contact), Recent interactions, Open threads, Notes, Linked entities.
+1. **Cortex person page** (if exists): frontmatter (tier, intent, buckets, relationship_class, icp_fit, preferred_channels, generosity_ledger), Identity, Relationship (temperature, last meaningful contact), Recent interactions, Open threads, Notes, Linked entities.
 2. **CRM record** (if connected): lifecycle stage, owner, open deals, last activity, custom tier/ICP properties.
 3. **Recent email threads** (if Gmail/Outlook connected): the 1-2 most recent threads, with subject + ≤30-word summary. Note who sent last.
 4. **Recent calendar interactions** (if connected): the most recent past meeting + any upcoming.
@@ -85,7 +85,7 @@ Same logic as `/relationships` Step 4 (see `references/scoring.md` channel-selec
 
 Apply in order:
 1. **User override:** if the user's prompt included a channel ("text my brother" / "draft an email to Sarah") — honor it.
-2. **Person page `preferred_channel`** — if present, use it.
+2. **Person page `preferred_channels`** (array, v0.1.2+) — if present and non-empty, use the first matching entry; fall back to `preferred_channels[0]` if no exact channel-to-trigger match.
 3. **Channel-selection rule table** — based on relationship_class + tier + trigger.
 
 Then map `(channel, scenario)` → template file. Prefer user overrides at `<config-root>/relationships/templates/` over bundled `references/templates/`.

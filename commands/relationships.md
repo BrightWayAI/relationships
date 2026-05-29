@@ -36,7 +36,27 @@ Also read (best-effort, skip silently if missing):
 
 ### Schema validation preflight (v0.2.1+)
 
-Before scoring, walk every `memory/person/*.md` file and validate its `relationships:` frontmatter (if present). For each invalid combination, surface as a warning batch BEFORE the brief renders. The user can either fix in-place or proceed with a downgraded brief.
+Before scoring, walk every `memory/person/*.md` file and validate its `relationships:` frontmatter. For each invalid combination OR untagged-page, surface as a warning batch BEFORE the brief renders. The user can either fix in-place or proceed with documented defaults applied silently.
+
+### Step 0.0 — Untagged-page defaults (v0.2.2+)
+
+For every `memory/person/*.md` file where `relationships:` frontmatter is ABSENT entirely (legacy person pages from pre-v0.1.x cortex installs that haven't been touched by `/network-rebalance`), apply the following defaults IN-MEMORY for scoring purposes (do NOT auto-write to the file — that's `/network-rebalance`'s job):
+
+```yaml
+relationships:
+  tier: operational
+  intent: keep_warm
+  buckets: [relationship]
+  relationship_class: business
+  icp_fit: none
+  preferred_channels: []
+  next_touch_target: <last_meaningful_contact + 90 days, OR today + 90 if no last contact>
+```
+
+Surface a count at the top of the warning batch:
+> "Note: <N> person pages have no `relationships:` frontmatter — applying default tag (tier:operational, intent:keep_warm, buckets:[relationship]). Run `/network-rebalance` to set explicit values."
+
+This prevents the scoring engine from crashing on `undefined` reads (which was the v0.2.1 bug). Pages with PARTIAL frontmatter (some required fields present, others missing) get individual warnings per Validation Rule 2 below, with defaults filled for the missing fields.
 
 **Validation rules:**
 
@@ -78,7 +98,7 @@ SCHEMA VALIDATION — 3 warnings before scoring:
 Proceed with scoring? (y / fix-now / show-details)
 ```
 
-- **`y`** — proceed; warnings logged to `<config-root>/memory/staged/skip-logs/schema-validation.md` for review.
+- **`y`** — proceed; warnings logged to `<config-root>/memory/staged/skip-logs/schema-validation-<brief_id>.md` (unique per run, v0.2.2+ — avoids concurrent-append race when multiple `/relationships` invocations run in parallel). Older logs are rolled up nightly by `/end-day` into `staged/skip-logs/schema-validation-rollup-<YYYY-MM-DD>.md` to prevent unbounded file growth.
 - **`fix-now`** — invoke `/network-rebalance --scoped person/sarah-chen,person/jonathan-harms,person/derek-patel` to walk just the warned pages.
 - **`show-details`** — render full validation details for each warning (the rule that fired, the current value, suggested fixes).
 

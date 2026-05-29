@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.2.2 — Events.jsonl unification + untagged-page defaults + override-log enum (2026-05-28)
+
+Same-day patch fixing 3 CRITICAL findings surfaced by post-ship review. Coordinated with cortex v4.12.2 + daily-brief v0.4.1.
+
+### CRITICAL — Events.jsonl shape unified
+
+v0.2.1's `/touchpoint` wrote events with `summary` field while `/relationships-action` wrote events with `notes` — UI readers would see `null` for every touchpoint. v0.2.2 unifies:
+
+- Canonical `notes` field across both writers (free-form user text, ≤ 4KB cap).
+- Touchpoint-specific fields (`direction`, `intent_at_time`, `tier_at_time`, `source`) nested under `meta: {...}`.
+- `schema_version: "0.2.2"` on every new event. Missing → treat as v0.2.0 (top-level fields, no meta block).
+- `/relationships-action` shape similarly updates to nest `snooze_until`, `late_action`, `source` under `meta:` for consistency.
+- `action: "touchpoint"` extends the existing enum `copied | sent | skipped | snoozed`. UI readers must accept unknown action values gracefully.
+
+### CRITICAL — Untagged-person-page defaults
+
+v0.2.1's schema validation in `/relationships` Step 0 silently ignored person pages WITHOUT `relationships:` frontmatter. Scoring engine then crashed on undefined reads. v0.2.2 adds **Step 0.0** that applies documented defaults in-memory for untagged pages (`tier: operational, intent: keep_warm, buckets: [relationship], relationship_class: business, icp_fit: none, next_touch_target: last_meaningful_contact + 90d`). Surfaces a count: "Note: <N> person pages have no frontmatter — applying default tag. Run /network-rebalance to set explicit values."
+
+### CRITICAL — Atomic-append safety on events.jsonl
+
+Three writers (`/touchpoint`, `/relationships-action`, `/relationships` Step 7) append concurrently. Under POSIX, `O_APPEND` is atomic only for writes ≤ `PIPE_BUF` (4KB). v0.2.2 enforces:
+- Each event line capped at 4000 bytes (truncate `notes`, append `[truncated]` marker).
+- Single `write()` call per event (not multiple appends).
+- Full unredacted summary lives on person page Recent Interactions section; events.jsonl stays atomic.
+
+### Other fixes from review
+
+- **Schema-validation override log → constrained enum reason codes** (was free-form text that captured PII like "Sarah is going through a divorce, downgraded tier"). New codes: `user-override | intentional-mismatch | pending-rebalance | migration-residue`. If reasoning needs preserving, put it in the person page `notes` field where it's covered by local-only privacy posture.
+- **Schema-validation override log filename → unique per invocation** (`schema-validation-<brief_id>.md` instead of single file). Avoids concurrent-append race when multiple `/relationships` invocations run in parallel. Nightly roll-up planned for `/end-day`.
+- **`/touchpoint` Step 5.0 `mkdir -p <config-root>/relationships/`** before first events.jsonl append. Was silent failure for first-run users.
+- **Stale `preferred_channel` (singular) refs cleaned up** in `network-rebalance.md:159` (was `preferred_channel: email`, now `preferred_channels: [email]`) and `draft-touchpoint.md:49,88` (description text + lookup logic). v0.1.2 had migrated to array form; these were stragglers.
+- **`network-rebalance.md` description** updated to mention `intent` field (was missing) and the v0.2.2 retired-plugin migration step (added to roadmap).
+
+### Coordinated with cortex v4.12.2
+
+- Cortex `/end-day` Step 4.0 reads daily-brief artifact state and sanitizes annotations before reflection — does NOT quote verbatim from annotations (which may contain raw client content).
+
+### Coordinated with nucleus contracts.md
+
+- New section: events.jsonl unified shape (full v0.2.2 schema documented with backward-compat read rule).
+
+### Findings still deferred
+
+- Migration step in `/setup-relationships` for legacy `weekly-outreach.user-context.md` and `bizdev-outreach.user-context.md` files (auto-copy fields, archive originals) — pending v0.3.
+- DASHBOARD provenance retrofit baseline (cortex /cleanup Section L flood handling) — pending cortex v4.13.
+
+---
+
 ## 0.2.1 — Schema validation + /touchpoint
 
 Dogfooding-driven hardening on top of v0.2.0. Two additions surfaced during the 2026-05-28 build session:

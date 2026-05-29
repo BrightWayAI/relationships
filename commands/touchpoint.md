@@ -123,26 +123,63 @@ Cap the ledger at 20 entries (oldest dropped — rolling window).
 
 ---
 
-## Step 5 — Append to relationships events log
+## Step 5 — Append to relationships events log (v0.2.2 unified shape)
 
-Same shape as `/relationships-action` for consistency. Append to `<config-root>/relationships/events.jsonl`:
+Append to `<config-root>/relationships/events.jsonl`. Uses the v0.2.2 unified shape (harmonized with `/relationships-action`):
+
+### Step 5.0 — Ensure directory exists (v0.2.2+)
+
+```
+mkdir -p <config-root>/relationships/
+```
+
+Idempotent — silent on existing. Prevents silent failure when `/touchpoint` is the first relationships-plugin write on a fresh install.
+
+### Step 5.1 — Compose the event
 
 ```json
 {
+  "schema_version": "0.2.2",
   "ts": "<ISO 8601 with timezone>",
-  "brief_id": null,                  // not tied to a specific brief
-  "option_id": null,                  // not from a brief card
+  "brief_id": null,
+  "option_id": null,
   "person_slug": "<slug>",
-  "bucket": null,                     // touchpoint doesn't carry a bucket
+  "bucket": null,
   "channel": "<channel>",
   "action": "touchpoint",
-  "direction": "in | out",
-  "summary": "<user's summary>",
-  "intent_at_time": "<intent value from frontmatter>",
-  "tier_at_time": "<tier value from frontmatter>",
-  "source": "natural-language | explicit-args"
+  "notes": "<user's summary — truncated to fit 4KB cap; see Step 5.2>",
+  "meta": {
+    "direction": "in" | "out",
+    "intent_at_time": "<intent value from frontmatter>",
+    "tier_at_time": "<tier value from frontmatter>",
+    "source": "natural-language" | "explicit-args"
+  }
 }
 ```
+
+**Shape unification rationale (v0.2.2 fix):**
+- `notes` is the canonical user-supplied-text field. Same key `/relationships-action` uses. UI readers see `event.notes` regardless of which command produced the event.
+- `meta` nests touchpoint-specific extensions so v0.1.x readers (which don't know about `meta`) ignore it gracefully.
+- `schema_version` lets readers gate compatibility. v0.2.0 events lacked this field; readers must default to "0.2.0" when missing.
+- `action: "touchpoint"` extends the existing enum `copied | sent | skipped | snoozed`. UI readers should accept unknown `action` values gracefully (treat as a generic logged event).
+
+### Step 5.2 — Enforce atomic-append safety (v0.2.2+)
+
+The events.jsonl file is appended by THREE writers (`/touchpoint`, `/relationships-action`, `/relationships` Step 7). POSIX `O_APPEND` writes are atomic ONLY when the write is ≤ `PIPE_BUF` (typically 4096 bytes on macOS and Linux). Longer writes can interleave under concurrent access and corrupt the JSONL.
+
+```
+event_json = serialize event with newline appended
+if len(event_json) > 4000:   # safety margin under 4096
+  Truncate `notes` so the total event_json stays ≤ 4000 bytes.
+  Append "[truncated — see person page Recent Interactions for full summary]" marker to notes.
+  Re-serialize and verify size.
+
+# Use O_APPEND open mode (bash `>>` does this by default; in Python: open(path, "a"))
+# Single write call (not multiple write() calls — they're not atomic across calls)
+append event_json to events.jsonl
+```
+
+The full unredacted summary lives on the person page's `## Recent Interactions` section (already written in Step 3). The events.jsonl stays atomic-safe for downstream analytics.
 
 Append-only. Same file as `/relationships-action`'s event log — gives a UI a unified action stream regardless of where the action originated.
 
